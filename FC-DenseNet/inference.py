@@ -22,7 +22,7 @@ import imagereader
 import skimage.io
 
 
-INF_TILE_SIZE = 640  # trade off between GPU memory and the effective radius, since ZOR needs to be > RADIUS
+INF_TILE_SIZE = 832  # trade off between GPU memory and the effective radius, since ZOR needs to be > RADIUS
 
 
 def _inference_tiling(img, fcd_model, tile_size):
