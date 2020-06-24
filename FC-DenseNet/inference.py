@@ -156,9 +156,7 @@ def _inference(img, fcd_model):
         img = img.reshape((img.shape[0], img.shape[1], 1))
     img = np.pad(img, pad_width=((0, pad_y), (0, pad_x), (0, 0)), mode='reflect')
 
-    # convert HWC to CHW
-    batch_data = img.transpose((2, 0, 1))
-    # convert CHW to NCHW
+    # convert HWC to NHWC
     batch_data = batch_data.reshape((1, batch_data.shape[0], batch_data.shape[1], batch_data.shape[2]))
     batch_data = tf.convert_to_tensor(batch_data)
 

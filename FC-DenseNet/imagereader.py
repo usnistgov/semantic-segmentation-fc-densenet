@@ -287,9 +287,7 @@ class ImageReader:
                                                  blur_augmentation_max_sigma=self._blur_max_sigma,
                                                  intensity_augmentation_severity=self._intensity_augmentation_severity)
 
-                # format the image into a tensor
-                # reshape into tensor (CHW)
-                I = I.transpose((2, 0, 1))
+                # format the image into a tensor (HWC)
                 I = I.astype(np.float32)
                 I = zscore_normalize(I)
 
@@ -343,8 +341,8 @@ class ImageReader:
         print('Creating Dataset')
         # wrap the input queues into a Dataset
         # this sets up the imagereader class as a Python generator
-        # Images come in as HWC, and are converted into CHW for network
-        image_shape = tf.TensorShape((self.image_size[2], self.image_size[0], self.image_size[1]))
+        # Images come in as HWC, and are input into the network as HWC
+        image_shape = tf.TensorShape((self.image_size[0], self.image_size[1], self.image_size[2]))
         label_shape = tf.TensorShape((self.image_size[0], self.image_size[1], self.nb_classes))
         return tf.data.Dataset.from_generator(self.generator, output_types=(tf.float32, tf.int32), output_shapes=(image_shape, label_shape))
 

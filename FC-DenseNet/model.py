@@ -47,14 +47,14 @@ class FCDensenet():
 
     @staticmethod
     def __conv_block(x, nb_filters):
-        x = tf.keras.layers.BatchNormalization(axis=1, momentum=FCDensenet.__BN_MOMENTUM)(x)
+        x = tf.keras.layers.BatchNormalization(axis=3, momentum=FCDensenet.__BN_MOMENTUM)(x)
         x = tf.keras.layers.Activation('relu')(x)
         x = tf.keras.layers.Conv2D(filters=nb_filters,
                                         kernel_size=3,
                                         padding='same',
                                         activation=None,
                                         use_bias=False,
-                                        data_format='channels_first')(x)
+                                        data_format='channels_last')(x)
         x = tf.keras.layers.Dropout(FCDensenet.__DROPOUT_RATE)(x)
         return x
 
@@ -64,7 +64,7 @@ class FCDensenet():
         for i in range(nb_layers):
             cb = FCDensenet.__conv_block(x, growth_rate)
             x_list.append(cb)
-            x = tf.keras.layers.concatenate([x, cb], axis=1)
+            x = tf.keras.layers.concatenate([x, cb], axis=3)
             if grow_nb_filters:
                 nb_filters += growth_rate
 
@@ -72,7 +72,7 @@ class FCDensenet():
 
     @staticmethod
     def __transition_down_block(x, nb_filters):
-        x = tf.keras.layers.BatchNormalization(momentum=FCDensenet.__BN_MOMENTUM, axis=1)(x)
+        x = tf.keras.layers.BatchNormalization(momentum=FCDensenet.__BN_MOMENTUM, axis=3)(x)
         x = tf.keras.layers.Activation('relu')(x)
         x = tf.keras.layers.Conv2D(filters=nb_filters,
                                    kernel_size=1,
@@ -80,8 +80,8 @@ class FCDensenet():
                                    activation=None,
                                    use_bias=False,
                                    kernel_regularizer=tf.keras.regularizers.l2(FCDensenet.__WEIGHT_DECAY),
-                                   data_format='channels_first')(x)
-        x = tf.keras.layers.MaxPooling2D(pool_size=2, strides=2, data_format='channels_first')(x)
+                                   data_format='channels_last')(x)
+        x = tf.keras.layers.MaxPooling2D(pool_size=2, strides=2, data_format='channels_last')(x)
         return x
 
     @staticmethod
@@ -92,7 +92,7 @@ class FCDensenet():
                                    padding='same',
                                    strides=2,
                                    kernel_regularizer=tf.keras.regularizers.l2(FCDensenet.__WEIGHT_DECAY),
-                                    data_format='channels_first')(x)
+                                    data_format='channels_last')(x)
 
     def __init__(self, number_classes, global_batch_size, number_channels, learning_rate=1e-4, label_smoothing=0):
 
@@ -103,7 +103,7 @@ class FCDensenet():
         self.initial_kernel_size = (3, 3)
 
         # image is HWC (normally e.g. RGB image) however data needs to be NCHW for network
-        self.inputs = tf.keras.Input(shape=(self.number_channels, None, None))
+        self.inputs = tf.keras.Input(shape=(None, None, self.number_channels))
 
         self.model = self.build_model()
 
@@ -138,9 +138,8 @@ class FCDensenet():
             print('Layers in each dense block: {}'.format(nb_layers))
 
             # Initial convolution
-            x = tf.keras.layers.Conv2D(filters=FCDensenet.INIT_CONV_FILTERS, kernel_size=self.initial_kernel_size, padding='same',
-                       use_bias=False, kernel_regularizer=tf.keras.regularizers.l2(FCDensenet.__WEIGHT_DECAY), data_format='channels_first')(self.inputs)
-            x = tf.keras.layers.BatchNormalization(momentum=FCDensenet.__BN_MOMENTUM, axis=1)(x)
+            x = tf.keras.layers.Conv2D(filters=FCDensenet.INIT_CONV_FILTERS, kernel_size=self.initial_kernel_size, padding='same', use_bias=False, kernel_regularizer=tf.keras.regularizers.l2(FCDensenet.__WEIGHT_DECAY), data_format='channels_last')(self.inputs)
+            x = tf.keras.layers.BatchNormalization(momentum=FCDensenet.__BN_MOMENTUM, axis=3)(x)
             x = tf.keras.layers.Activation('relu')(x)
 
             # keeps track of the current number of feature maps
@@ -171,24 +170,21 @@ class FCDensenet():
 
                 # upsampling block must upsample only the feature maps (concat_list[1:]),
                 # not the concatenation of the input with the feature maps
-                l = tf.keras.layers.concatenate(concat_list[1:], axis=1, name='Concat_DenseBlock_out_{}'.format(block_idx))
+                l = tf.keras.layers.concatenate(concat_list[1:], axis=3, name='Concat_DenseBlock_out_{}'.format(block_idx))
 
                 t = FCDensenet.__transition_up_block(l, nb_filters=n_filters_keep)
 
                 # concatenate the skip connection with the transition block output
-                x = tf.keras.layers.concatenate([t, skip_list[block_idx]], axis=1, name='Concat_SkipCon_{}'.format(block_idx))
+                x = tf.keras.layers.concatenate([t, skip_list[block_idx]], axis=3, name='Concat_SkipCon_{}'.format(block_idx))
 
                 # Dont allow the feature map size to grow in upsampling dense blocks
-                x_up, nb_filter, concat_list = FCDensenet.__dense_block(x, nb_layers[FCDensenet.NB_DENSE_BLOCK + block_idx + 1], nb_filters=FCDensenet.GROWTH_RATE,
-                                                            growth_rate=FCDensenet.GROWTH_RATE, grow_nb_filters=False)
+                x_up, nb_filter, concat_list = FCDensenet.__dense_block(x, nb_layers[FCDensenet.NB_DENSE_BLOCK + block_idx + 1], nb_filters=FCDensenet.GROWTH_RATE, growth_rate=FCDensenet.GROWTH_RATE, grow_nb_filters=False)
 
             # final convolution
-            x = tf.keras.layers.concatenate(concat_list[1:], axis=1)
-            x = tf.keras.layers.Conv2D(filters=self.nb_classes, kernel_size=1, activation='linear', padding='same', use_bias=False, data_format='channels_first', name='logit')(x)
+            x = tf.keras.layers.concatenate(concat_list[1:], axis=3)
+            x = tf.keras.layers.Conv2D(filters=self.nb_classes, kernel_size=1, activation='linear', padding='same', use_bias=False, data_format='channels_last', name='logit')(x)
 
-            # convert NCHW to NHWC so that softmax axis is the last dimension
-            x = tf.keras.layers.Permute((2, 3, 1))(x)
-            x = tf.keras.layers.Softmax(axis=-1, name='softmax')(x)
+            x = tf.keras.layers.Softmax(axis=3, name='softmax')(x)
 
         fc_densenet = tf.keras.Model(self.inputs, x, name='fcd')
 
@@ -215,7 +211,7 @@ class FCDensenet():
         N = 2 * FCDensenet.RADIUS  # get the theoretical radius
         M = 64
         # create random noise input image
-        img = tf.Variable(np.random.normal(size=(1, self.number_channels, M, N)), dtype=tf.float32)
+        img = tf.Variable(np.random.normal(size=(1, M, N, self.number_channels)), dtype=tf.float32)
 
         mid_idx_n = int(N / 2)  # determine the midpoint of the image
         mid_idx_m = int(M / 2)  # determine the midpoint of the image
@@ -237,7 +233,7 @@ class FCDensenet():
         grad_img = np.abs(grads[0].numpy().squeeze())
         # average over channels
         if self.number_channels > 1:
-            grad_img = np.average(grad_img, axis=0)
+            grad_img = np.average(grad_img, axis=-1)
 
         print('Theoretical RF: {}'.format(FCDensenet.RADIUS))
         eps = 1e-8
