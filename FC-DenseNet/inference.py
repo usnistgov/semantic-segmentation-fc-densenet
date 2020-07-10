@@ -98,9 +98,7 @@ def _inference_tiling(img, fcd_model, tile_size):
             # crop out the tile
             tile = img[y_st:y_end, x_st:x_end]
 
-            # convert HWC to CHW
-            batch_data = tile.transpose((2, 0, 1))
-            # convert CHW to NCHW
+            # convert HWC to NHWC
             batch_data = batch_data.reshape((1, batch_data.shape[0], batch_data.shape[1], batch_data.shape[2]))
 
             sm = fcd_model.get_keras_model()(batch_data)  # model output defined in unet_model is softmax
