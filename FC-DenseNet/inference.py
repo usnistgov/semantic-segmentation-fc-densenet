@@ -99,9 +99,9 @@ def _inference_tiling(img, fcd_model, tile_size):
             tile = img[y_st:y_end, x_st:x_end]
 
             # convert HWC to NHWC
-            batch_data = batch_data.reshape((1, batch_data.shape[0], batch_data.shape[1], batch_data.shape[2]))
+            tile = tile.reshape((1, tile.shape[0], tile.shape[1], tile.shape[2]))
 
-            sm = fcd_model.get_keras_model()(batch_data)  # model output defined in unet_model is softmax
+            sm = fcd_model.get_keras_model()(tile)  # model output defined in unet_model is softmax
             sm = np.squeeze(sm)
             pred = np.squeeze(np.argmax(sm, axis=-1).astype(np.int32))
 
@@ -155,10 +155,10 @@ def _inference(img, fcd_model):
     img = np.pad(img, pad_width=((0, pad_y), (0, pad_x), (0, 0)), mode='reflect')
 
     # convert HWC to NHWC
-    batch_data = batch_data.reshape((1, batch_data.shape[0], batch_data.shape[1], batch_data.shape[2]))
-    batch_data = tf.convert_to_tensor(batch_data)
+    img = img.reshape((1, img.shape[0], img.shape[1], img.shape[2]))
+    img = tf.convert_to_tensor(img)
 
-    softmax = fcd_model.get_keras_model()(batch_data) # model output defined in unet_model is softmax
+    softmax = fcd_model.get_keras_model()(img) # model output defined in unet_model is softmax
     softmax = np.squeeze(softmax)
     pred = np.squeeze(np.argmax(softmax, axis=-1).astype(np.int32))
 
